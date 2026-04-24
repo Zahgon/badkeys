@@ -97,211 +97,48 @@ warnings.filterwarnings("ignore", category=cryptography.utils.CryptographyDeprec
 
 
 def _checkkey(key, checks, keyrecover=False):
-    r = {}
-    if isinstance(key, rsa.RSAPublicKey):
-        r["type"] = "rsa"
-        r["n"] = key.public_numbers().n
-        r["e"] = key.public_numbers().e
-        r["bits"] = r["n"].bit_length()
-        r["results"] = checkrsa(r["n"], e=r["e"], checks=checks, keyrecover=keyrecover)
-    elif isinstance(key, ec.EllipticCurvePublicKey):
-        r["type"] = "ec"
-        r["curve"] = key.curve.name
-        # shorter names for standard curves
-        if r["curve"].startswith("sec") and r["curve"].endswith("r1"):
-            r["curve"] = r["curve"][3:-2]
-        r["x"] = key.public_numbers().x
-        r["y"] = key.public_numbers().y
-        r["results"] = checkall(r["x"], checks=checks)
-    elif isinstance(key, dsa.DSAPublicKey):
-        r["type"] = "dsa"
-        r["y"] = key.public_numbers().y
-        r["p"] = key.parameters().parameter_numbers().p
-        r["q"] = key.parameters().parameter_numbers().q
-        r["g"] = key.parameters().parameter_numbers().g
-        r["bits"] = key.key_size
-        # we currently have no checks using the q, g parameters,
-        # they could be added in the future
-        r["results"] = checkdsa(r["y"], p=r["p"], checks=checks)
-    elif isinstance(key, (ed25519.Ed25519PublicKey, x25519.X25519PublicKey,
-                          x448.X448PublicKey, ed448.Ed448PublicKey)):
-        r["type"] = "ec"
-        r["curve"] = str(type(key).__name__).lower()[:-9]
-        # convert the raw key into an integer for the blocklist check
-        pub_b = key.public_bytes(encoding=serialization.Encoding.Raw,
-                                 format=serialization.PublicFormat.Raw)
-        r["pub"] = int.from_bytes(pub_b, byteorder="big")
-        r["results"] = checkall(r["pub"], checks=checks)
-    elif isinstance(key, dh.DHPublicKey):
-        r["type"] = "dh"
-        try:
-            r["y"] = key.public_numbers().y
-        except ValueError:
-            # happens with e.g. very small (<512) DH keys
-            return {"type": "unparseable", "results": {}}
-        r["results"] = checkall(r["y"], checks=checks)
-    else:
-        r["type"] = "unsupported"
-        r["results"] = {}
-    spki = key.public_bytes(serialization.Encoding.DER,
-                            serialization.PublicFormat.SubjectPublicKeyInfo)
-    r["spkisha256"] = hashlib.sha256(spki).hexdigest()
-    return r
+    pass
 
 
 def checkrsa(n, e=65537, checks=defaultchecks.keys(), keyrecover=False):
-    results = {}
-    for check in checks:
-        callcheck = allchecks[check]["function"]
-        if allchecks[check]["type"] == "rsa":
-            r = callcheck(n, e=e)
-        elif allchecks[check]["type"] == "all":
-            r = callcheck(n)
-        else:
-            continue
-        if r is not False:
-            pemkey = None
-            if keyrecover and "p" in r and "q" in r:
-                pemkey = rsarecover(p=r["p"], q=r["q"], n=n, e=e)
-            elif keyrecover and "d" in r:
-                pemkey = rsarecover(d=r["d"], n=n, e=e)
-            if pemkey:
-                r["privatekey"] = pemkey
-            results[check] = r
-    return results
+    pass
 
 
 def checkdsa(y, p=0, checks=defaultchecks.keys()):
-    results = {}
-    for check in checks:
-        callcheck = allchecks[check]["function"]
-        if allchecks[check]["type"] == "dsa":
-            r = callcheck(y, p=p)
-        elif allchecks[check]["type"] == "all":
-            r = callcheck(y)
-        else:
-            continue
-        if r is not False:
-            results[check] = r
-    return results
+    pass
 
 
 def checkall(x, checks=defaultchecks.keys()):
-    results = {}
-    for check in checks:
-        if allchecks[check]["type"] != "all":
-            continue
-        callcheck = allchecks[check]["function"]
-        r = callcheck(x)
-        if r is not False:
-            results[check] = r
-    return results
+    pass
 
 
 def _reterr(rtype, ex):
-    return {"type": rtype, "results": {}, "exception": ex.__class__.__name__, "errmsg": str(ex)}
+    pass
 
 
 def checkpubkey(rawkey, checks=defaultchecks.keys(), keyrecover=False):
-    try:
-        key = serialization.load_pem_public_key(rawkey.encode())
-    except ValueError as e:
-        # ValueError: defect inputs (partial keys, ASN.1 errors), ECDSA with explicit curves,
-        #             unknown key types (e.g., ML-DSA)
-        return _reterr("unparseable", e)
-    except cryptography.exceptions.UnsupportedAlgorithm as e:
-        # UnsupportedAlgorithm: Unsupported elliptic curves
-        return _reterr("unsupported", e)
-    return _checkkey(key, checks, keyrecover=keyrecover)
+    pass
 
 
 def checkprivkey(rawkey, checks=defaultchecks.keys(), keyrecover=False):
-    try:
-        priv = serialization.load_pem_private_key(rawkey.encode(), password=None)
-    except ValueError as e:
-        # ValueError: defect inputs, unknown key types, explicit curves
-        return _reterr("unparseable", e)
-    except (cryptography.exceptions.UnsupportedAlgorithm, TypeError) as e:
-        # UnsupportedAlgorithm: Unsupported elliptic curves
-        # TypeError: passwords-protected keys
-        return _reterr("unsupported", e)
-    return _checkkey(priv.public_key(), checks, keyrecover=keyrecover)
+    pass
 
 
 def checkcrt(rawcert, checks=defaultchecks.keys(), keyrecover=False):
-    try:
-        crt = x509.load_pem_x509_certificate(rawcert.encode())
-    except (ValueError, cryptography.x509.base.InvalidVersion) as e:
-        return _reterr("unparseable", e)
-    try:
-        pubkey = crt.public_key()
-    except (cryptography.exceptions.UnsupportedAlgorithm, ValueError, NotImplementedError) as e:
-        # ValueError: unknown key types, explicit curves
-        # UnsupportedAlgorithm: unsupported curves
-        # NotImplementedError: ? (possibly certificate extension issues)
-        return _reterr("unsupported", e)
-    return _checkkey(pubkey, checks, keyrecover=keyrecover)
+    pass
 
 
 def checkcsr(rawcsr, checks=defaultchecks.keys(), keyrecover=False):
-    try:
-        csr = x509.load_pem_x509_csr(rawcsr.encode())
-    except (ValueError, cryptography.x509.base.InvalidVersion) as e:
-        return _reterr("unparseable", e)
-    try:
-        pubkey = csr.public_key()
-    except (cryptography.exceptions.UnsupportedAlgorithm, ValueError) as e:
-        # ValueError: unknown key types, explicit curves
-        # UnsupportedAlgorithm: unsupported curves
-        return _reterr("unsupported", e)
-    return _checkkey(pubkey, checks, keyrecover=keyrecover)
+    pass
 
 
 def checksshprivkey(sshkey, checks=defaultchecks.keys(), keyrecover=False):
-    try:
-        pkey = serialization.load_ssh_private_key(sshkey.encode(), password=None)
-    except ValueError as e:
-        # ValueError: defect keys
-        return _reterr("unparseable", e)
-    except (cryptography.exceptions.UnsupportedAlgorithm, TypeError) as e:
-        # UnsupportedAlgorithm: unsupported key types, e.g., sk-*
-        # TypeError: password-protected keys
-        return _reterr("unsupported", e)
-    return _checkkey(pkey.public_key(), checks, keyrecover=keyrecover)
+    pass
 
 
 def checksshpubkey(sshkey, checks=defaultchecks.keys(), keyrecover=False):
-    try:
-        pkey = serialization.load_ssh_public_key(sshkey.encode())
-    except ValueError as e:
-        # ValueError: defect keys, non-standard DSA keys (!=1024 bit)
-        return _reterr("unparseable", e)
-    except (cryptography.exceptions.UnsupportedAlgorithm, NotImplementedError) as e:
-        # UnsupportedAlgorithm: unsupported key types
-        # NotImplementedError: unsupported EC point format
-        return _reterr("unsupported", e)
-    return _checkkey(pkey, checks, keyrecover=keyrecover)
+    pass
 
 
 def detectandcheck(inkey, checks=defaultchecks.keys(), keyrecover=False):
-    if "-----BEGIN CERTIFICATE-----" in inkey:
-        return checkcrt(inkey, checks, keyrecover=keyrecover)
-    if "-----BEGIN CERTIFICATE REQUEST-----" in inkey:
-        return checkcsr(inkey, checks, keyrecover=keyrecover)
-    if "-----BEGIN PUBLIC KEY-----" in inkey:
-        return checkpubkey(inkey, checks, keyrecover=keyrecover)
-    if "-----BEGIN RSA PUBLIC KEY-----" in inkey:
-        return checkpubkey(inkey, checks, keyrecover=keyrecover)
-    if "-----BEGIN PRIVATE KEY-----" in inkey:
-        return checkprivkey(inkey, checks, keyrecover=keyrecover)
-    if "-----BEGIN RSA PRIVATE KEY-----" in inkey:
-        return checkprivkey(inkey, checks, keyrecover=keyrecover)
-    if "-----BEGIN DSA PRIVATE KEY-----" in inkey:
-        return checkprivkey(inkey, checks, keyrecover=keyrecover)
-    if "-----BEGIN EC PRIVATE KEY-----" in inkey:
-        return checkprivkey(inkey, checks, keyrecover=keyrecover)
-    if "-----BEGIN OPENSSH PRIVATE KEY-----" in inkey:
-        return checksshprivkey(inkey, checks, keyrecover=keyrecover)
-    if inkey.startswith(("ssh-", "ecdsa-")):
-        return checksshpubkey(inkey, checks, keyrecover=keyrecover)
-    return {"type": "notfound", "results": {}}
+    pass

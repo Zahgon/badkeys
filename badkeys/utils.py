@@ -6,32 +6,26 @@ _retval = 0
 
 
 def _esc(inp):
-    return repr(inp)[1:-1]
+    pass
 
 
 @functools.cache
 def _setret(rv):
-    global _retval
-    _retval |= rv
+    pass
 
 
 def _getret():
-    return _retval
+    pass
 
 
 def _warnmsg(msg):
-    _setret(2)
-    print(f"WARNING: {msg}", file=sys.stderr)
+    pass
 
 
 def _errexit(msg):
-    print(f"ERROR: {msg}", file=sys.stderr)
-    sys.exit(_retval | 1)
+    pass
 
 
 @functools.cache
 def _cachedir():
-    cachedir = os.getenv("XDG_CACHE_HOME")
-    if cachedir:
-        return os.path.join(cachedir, "badkeys", "")
-    return os.path.expanduser("~/.cache/badkeys/")
+    pass
